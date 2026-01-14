@@ -1,0 +1,5 @@
+fastapi==0.115.6
+uvicorn[standard]==0.30.6
+jinja2==3.1.4
+httpx==0.27.2
+itsdangerous==2.2.0

@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Dashboard • Pet QR</title>
+  <style>
+    :root{
+      --bg:#0b1220; --card:#121c33; --text:#eaf0ff; --muted:#93a4c7;
+      --accent:#22d3ee; --accent2:#60a5fa; --line:rgba(255,255,255,.10);
+      --ok:#34d399;
+    }
+    body{margin:0;background:radial-gradient(1200px 600px at 10% 0%, rgba(34,211,238,.15), transparent 50%),
+                  radial-gradient(900px 500px at 90% 10%, rgba(96,165,250,.18), transparent 45%),
+                  var(--bg);
+         font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;color:var(--text);}
+    .wrap{max-width:1100px;margin:0 auto;padding:18px;}
+    .top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+    h1{margin:0;font-size:22px;}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+         padding:10px 12px;border-radius:12px;border:1px solid var(--line);
+         color:var(--text);text-decoration:none;background:rgba(255,255,255,.03);font-weight:800;}
+    .btn:hover{transform:translateY(-1px);transition:.12s ease;border-color:rgba(34,211,238,.35);}
+    .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:12px;}
+    @media(max-width:900px){.grid{grid-template-columns:1fr;}}
+    .card{background:rgba(18,28,51,.92);border:1px solid var(--line);border-radius:18px;overflow:hidden;
+          box-shadow:0 18px 60px rgba(0,0,0,.35);}
+    .card-h{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
+    .muted{color:var(--muted);}
+    .content{padding:14px 16px;}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+    @media(max-width:700px){.stats{grid-template-columns:1fr;}}
+    .stat{padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(255,255,255,.03);}
+    .stat .n{font-size:22px;font-weight:900;margin-top:4px;}
+    .filters{display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:end;}
+    @media(max-width:900px){.filters{grid-template-columns:1fr 1fr;}}
+    label{display:block;margin:0 0 6px;color:var(--muted);font-size:13px;}
+    select,input{width:100%;padding:10px;border-radius:12px;border:1px solid var(--line);
+                 background:rgba(255,255,255,.03);color:var(--text);outline:none;}
+    table{width:100%;border-collapse:collapse;}
+    th,td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top;font-size:13px;}
+    th{color:var(--muted);text-align:left;font-weight:800;}
+    .pill{display:inline-flex;gap:8px;align-items:center;padding:6px 10px;border-radius:999px;
+          border:1px solid var(--line);background:rgba(255,255,255,.03);color:var(--muted);font-size:12px;}
+    code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:8px;border:1px solid var(--line);}
+    .pagination{display:flex;gap:10px;align-items:center;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--line);flex-wrap:wrap;}
+    .a{color:var(--text);text-decoration:none;}
+    .small{font-size:12px;color:var(--muted);}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+
+    <div class="top">
+      <h1>📊 Dashboard • Pet QR</h1>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <a class="btn" href="{{ base_url }}/p/rocky" target="_blank">🐶 Abrir perfil</a>
+        <a class="btn" href="/admin/logout">🚪 Salir</a>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- Stats -->
+      <div class="card">
+        <div class="card-h">
+          <div>
+            <div style="font-weight:900;">Resumen</div>
+            <div class="muted">Lo importante, sin llorar.</div>
+          </div>
+          <div class="pill">DB: <code>{{ stats.total }}</code> scans</div>
+        </div>
+        <div class="content">
+          <div class="stats">
+            <div class="stat">
+              <div class="muted">Total escaneos</div>
+              <div class="n">{{ stats.total }}</div>
+            </div>
+            <div class="stat">
+              <div class="muted">Último escaneo</div>
+              <div class="n" style="font-size:14px;">
+                {% if stats.last %}
+                  <div><b>{{ stats.last.pet_id }}</b> • {{ stats.last.ts_utc }}</div>
+                  <div class="small">IP: {{ stats.last.ip }}</div>
+                {% else %}
+                  <span class="muted">Nada todavía</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="stat">
+              <div class="muted">Por perro</div>
+              <div class="n" style="font-size:14px;">
+                {% for x in stats.per_pet %}
+                  <div><b>{{ x.pet_id }}</b>: {{ x.count }}</div>
+                {% else %}
+                  <span class="muted">—</span>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+
+          <div style="height:14px"></div>
+
+          <form method="get" action="/admin">
+            <div class="filters">
+              <div>
+                <label>Perro</label>
+                <select name="pet">
+                  {% for p in pets %}
+                    <option value="{{ p.id }}" {% if p.id == selected_pet %}selected{% endif %}>{{ p.name }} ({{ p.id }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div>
+                <label>Desde (UTC)</label>
+                <input type="date" name="date_from" value="{{ date_from }}">
+              </div>
+
+              <div>
+                <label>Hasta (UTC)</label>
+                <input type="date" name="date_to" value="{{ date_to }}">
+              </div>
+
+              <div>
+                <label>Tamaño página</label>
+                <select name="page_size">
+                  {% for s in [10,25,50,100,200] %}
+                    <option value="{{ s }}" {% if s == page_size %}selected{% endif %}>{{ s }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div>
+                <button class="btn" type="submit">🔎 Filtrar</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Tips -->
+      <div class="card">
+        <div class="card-h">
+          <div style="font-weight:900;">Tips rápidos</div>
+          <div class="pill">Admin</div>
+        </div>
+        <div class="content">
+          <div class="small">
+            • Si el escaneo trae <b>lat/lon</b>, alguien aceptó compartir ubicación.<br/>
+            • Podés consumir JSON desde <code>/admin/api/scans</code> (logueado).<br/>
+            • En Coolify: montá volumen en <code>/data</code> para no perder la DB.<br/>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:12px"></div>
+
+    <!-- Table -->
+    <div class="card">
+      <div class="card-h">
+        <div>
+          <div style="font-weight:900;">Logs de escaneos</div>
+          <div class="muted">Total filtrado: {{ total }}</div>
+        </div>
+        <div class="pill">Página <code>{{ page }}</code> / <code>{{ pages }}</code></div>
+      </div>
+
+      <div class="content" style="padding:0;">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Perro</th>
+              <th>Fecha UTC</th>
+              <th>IP</th>
+              <th>Ubicación</th>
+              <th>User-Agent</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in rows %}
+              <tr>
+                <td><code>{{ r.id }}</code></td>
+                <td><b>{{ r.pet_id }}</b></td>
+                <td>{{ r.ts_utc }}</td>
+                <td class="small">{{ r.ip or "-" }}</td>
+                <td class="small">
+                  {% if r.lat and r.lon %}
+                    ✅ <a class="a" target="_blank" href="https://maps.google.com/?q={{ r.lat }},{{ r.lon }}">Maps</a><br/>
+                    <span class="muted">±{{ r.accuracy }} m</span>
+                  {% else %}
+                    <span class="muted">—</span>
+                  {% endif %}
+                </td>
+                <td class="small">{{ (r.user_agent or "")[:120] }}{% if r.user_agent and (r.user_agent|length) > 120 %}…{% endif %}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="6" class="muted" style="padding:16px;">No hay resultados con esos filtros.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination">
+        {% set q = "pet=" ~ selected_pet ~ "&date_from=" ~ date_from ~ "&date_to=" ~ date_to ~ "&page_size=" ~ page_size %}
+        {% if page > 1 %}
+          <a class="btn" href="/admin?{{ q }}&page={{ page - 1 }}">⬅️ Anterior</a>
+        {% endif %}
+        {% if page < pages %}
+          <a class="btn" href="/admin?{{ q }}&page={{ page + 1 }}">Siguiente ➡️</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <div style="height:12px"></div>
+    <div class="small muted">Pet QR • Dashboard</div>
+  </div>
+</body>
+</html>
