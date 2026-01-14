@@ -15,20 +15,19 @@ APP_NAME = "Pet QR"
 DB_PATH = os.getenv("DB_PATH", "/data/scans.db")
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000").rstrip("/")
 
-# Telegram
-TG_BOT_TOKEN = os.getenv("TG_BOT_TOKEN", "").strip()
-TG_CHAT_ID = os.getenv("TG_CHAT_ID", "").strip()
-TG_ENABLED = bool(TG_BOT_TOKEN and TG_CHAT_ID)
+# Discord Webhook
+DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "").strip()
+DISCORD_ENABLED = bool(DISCORD_WEBHOOK_URL)
 
 # Geo
 GEO_ENABLED = os.getenv("GEO_ENABLED", "true").lower() in ("1", "true", "yes", "y")
 
 # Admin auth (login)
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")  # ¡cambiar en producción!
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")  # cambiar en producción
 SESSION_SECRET = os.getenv("SESSION_SECRET", secrets.token_urlsafe(32))
 
-# Si querés varios perros, agregalos acá (después lo hacemos DB/JSON si pinta)
+# Si querés varios perros, agregalos acá (después lo pasamos a DB/JSON)
 PETS: Dict[str, Dict[str, Any]] = {
     "rocky": {
         "name": "Rocky",
@@ -44,16 +43,14 @@ PETS: Dict[str, Dict[str, Any]] = {
 
 app = FastAPI(title=APP_NAME)
 
-# Sessions (cookie)
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET,
     session_cookie="petqr_session",
     same_site="lax",
-    https_only=os.getenv("COOKIE_HTTPS_ONLY", "false").lower() in ("1", "true", "yes", "y"),
+    https_only=os.getenv("COOKIE_HTTPS_ONLY", "true").lower() in ("1", "true", "yes", "y"),
 )
 
-# Static + Templates
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
@@ -76,7 +73,6 @@ def db_init():
                 accuracy REAL
             )
         """)
-        # Índices básicos para dashboard
         conn.execute("CREATE INDEX IF NOT EXISTS idx_scans_pet ON scans(pet_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_scans_ts ON scans(ts_utc)")
         conn.commit()
@@ -124,10 +120,6 @@ def db_query_scans(
     page: int = 1,
     page_size: int = 25,
 ) -> Tuple[int, List[dict]]:
-    """
-    Devuelve (total_count, rows)
-    Filtrado por pet_id y rango de fechas (inclusive).
-    """
     page = max(1, page)
     page_size = min(max(5, page_size), 200)
     offset = (page - 1) * page_size
@@ -139,7 +131,6 @@ def db_query_scans(
         where.append("pet_id = ?")
         params.append(pet_id)
 
-    # date_from / date_to interpretadas como UTC boundaries
     if date_from:
         where.append("substr(ts_utc, 1, 10) >= ?")
         params.append(date_from)
@@ -151,12 +142,7 @@ def db_query_scans(
 
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
-
-        total = conn.execute(
-            f"SELECT COUNT(*) as c FROM scans {where_sql}",
-            params
-        ).fetchone()["c"]
-
+        total = conn.execute(f"SELECT COUNT(*) as c FROM scans {where_sql}", params).fetchone()["c"]
         rows = conn.execute(
             f"""
             SELECT id, pet_id, ts_utc, ip, user_agent, referrer, lat, lon, accuracy
@@ -189,9 +175,7 @@ def db_stats() -> dict:
         conn.row_factory = sqlite3.Row
         total = conn.execute("SELECT COUNT(*) as c FROM scans").fetchone()["c"]
         last = conn.execute("SELECT ts_utc, pet_id, ip FROM scans ORDER BY id DESC LIMIT 1").fetchone()
-        per_pet = conn.execute(
-            "SELECT pet_id, COUNT(*) as c FROM scans GROUP BY pet_id ORDER BY c DESC"
-        ).fetchall()
+        per_pet = conn.execute("SELECT pet_id, COUNT(*) as c FROM scans GROUP BY pet_id ORDER BY c DESC").fetchall()
 
     return {
         "total": total,
@@ -200,15 +184,17 @@ def db_stats() -> dict:
     }
 
 
-# ------------------------ Telegram ------------------------
+# ------------------------ Discord notify ------------------------
 
-async def telegram_notify(text: str):
-    if not TG_ENABLED:
+async def discord_notify(content: str):
+    """
+    Envía un mensaje simple a un webhook de Discord.
+    """
+    if not DISCORD_ENABLED:
         return
-    url = f"https://api.telegram.org/bot{TG_BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": TG_CHAT_ID, "text": text, "disable_web_page_preview": True}
+    payload = {"content": content}
     async with httpx.AsyncClient(timeout=10) as client:
-        await client.post(url, json=payload)
+        await client.post(DISCORD_WEBHOOK_URL, json=payload)
 
 
 # ------------------------ Auth helpers ------------------------
@@ -223,14 +209,14 @@ def require_auth(request: Request):
     return None
 
 
-# ------------------------ App lifecycle ------------------------
+# ------------------------ Startup ------------------------
 
 @app.on_event("startup")
 def startup():
     db_init()
 
 
-# ------------------------ Public endpoints ------------------------
+# ------------------------ Public ------------------------
 
 @app.get("/health", response_class=JSONResponse)
 def health():
@@ -239,11 +225,7 @@ def health():
 
 @app.get("/", response_class=HTMLResponse)
 def root():
-    # landing simple (evita 404)
-    return HTMLResponse(
-        "<h1>Pet QR</h1><p>Usá /p/&lt;pet_id&gt; (ej: /p/rocky)</p>",
-        status_code=200
-    )
+    return HTMLResponse("<h1>Pet QR</h1><p>Usá /p/&lt;pet_id&gt; (ej: /p/rocky)</p>", status_code=200)
 
 
 @app.get("/p/{pet_id}", response_class=HTMLResponse)
@@ -257,17 +239,17 @@ async def pet_page(pet_id: str, request: Request):
     ua = request.headers.get("user-agent", "")
     ref = request.headers.get("referer", "")
 
-    # Log del escaneo al abrir
     db_insert_scan(pet_id=pet_id, ts_utc=ts, ip=ip, ua=ua, ref=ref)
 
-    # Notificación inicial
     msg = (
-        f"🐶 Escanearon el QR de {pet['name']} ({pet_id})\n"
-        f"🕒 {ts}\n"
-        f"🌐 IP: {ip}\n"
-        f"🔗 Perfil: {BASE_URL}/p/{pet_id}"
+        f"🐶 **QR escaneado**\n"
+        f"• Perro: **{pet['name']}** (`{pet_id}`)\n"
+        f"• Hora (UTC): `{ts}`\n"
+        f"• IP: `{ip}`\n"
+        f"• Perfil: {BASE_URL}/p/{pet_id}"
     )
-    await telegram_notify(msg)
+    # Discord soporta markdown básico, va joya
+    await discord_notify(msg)
 
     return templates.TemplateResponse(
         "pet.html",
@@ -277,10 +259,6 @@ async def pet_page(pet_id: str, request: Request):
 
 @app.post("/api/scan/{pet_id}")
 async def scan_geo(pet_id: str, request: Request):
-    """
-    Se llama desde el navegador si el usuario aceptó compartir ubicación.
-    Guarda lat/lon y notifica con link a maps.
-    """
     pet = PETS.get(pet_id)
     if not pet:
         return JSONResponse({"ok": False, "error": "pet_not_found"}, status_code=404)
@@ -298,17 +276,18 @@ async def scan_geo(pet_id: str, request: Request):
 
     gmaps = f"https://maps.google.com/?q={lat},{lon}" if lat is not None and lon is not None else ""
     msg = (
-        f"📍 Ubicación compartida para {pet['name']} ({pet_id})\n"
-        f"🕒 {ts}\n"
-        f"🎯 Precisión: {acc} m\n"
-        f"🗺️ {gmaps}"
+        f"📍 **Ubicación compartida**\n"
+        f"• Perro: **{pet['name']}** (`{pet_id}`)\n"
+        f"• Hora (UTC): `{ts}`\n"
+        f"• Precisión: `{acc} m`\n"
+        f"• Maps: {gmaps}"
     )
-    await telegram_notify(msg)
+    await discord_notify(msg)
 
     return {"ok": True}
 
 
-# ------------------------ Admin Dashboard ------------------------
+# ------------------------ Admin ------------------------
 
 @app.get("/admin/login", response_class=HTMLResponse)
 def admin_login_get(request: Request):
@@ -326,7 +305,6 @@ def admin_login_post(
     if username == ADMIN_USER and password == ADMIN_PASSWORD:
         request.session["auth"] = True
         return RedirectResponse(url="/admin", status_code=303)
-
     return templates.TemplateResponse("login.html", {"request": request, "error": "Usuario o contraseña incorrectos."})
 
 
@@ -340,8 +318,8 @@ def admin_logout(request: Request):
 def admin_dashboard(
     request: Request,
     pet: Optional[str] = None,
-    date_from: Optional[str] = None,  # YYYY-MM-DD
-    date_to: Optional[str] = None,    # YYYY-MM-DD
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
     page: int = 1,
     page_size: int = 25,
 ):
@@ -350,15 +328,7 @@ def admin_dashboard(
         return redir
 
     stats = db_stats()
-    total, rows = db_query_scans(
-        pet_id=pet,
-        date_from=date_from,
-        date_to=date_to,
-        page=page,
-        page_size=page_size,
-    )
-
-    # Paginado
+    total, rows = db_query_scans(pet_id=pet, date_from=date_from, date_to=date_to, page=page, page_size=page_size)
     pages = max(1, (total + page_size - 1) // page_size)
     page = max(1, min(page, pages))
 

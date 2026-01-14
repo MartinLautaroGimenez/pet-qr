@@ -1,5 +1,16 @@
-fastapi==0.115.6
-uvicorn[standard]==0.30.6
-jinja2==3.1.4
-httpx==0.27.2
-itsdangerous==2.2.0
+FROM python:3.12-slim
+
+WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app ./app
+
+RUN mkdir -p /data
+ENV DB_PATH=/data/scans.db
+
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
