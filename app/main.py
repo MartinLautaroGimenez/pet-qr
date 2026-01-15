@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional, List, Tuple
 
 import httpx
 from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -24,20 +24,43 @@ GEO_ENABLED = os.getenv("GEO_ENABLED", "true").lower() in ("1", "true", "yes", "
 
 # Admin auth (login)
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")  # cambiar en producción
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
 SESSION_SECRET = os.getenv("SESSION_SECRET", secrets.token_urlsafe(32))
 
-# Perfiles (podés agregar más)
+# Si querés, podés esconder teléfono/whatsapp en la ficha pública
+SHOW_PHONE_PUBLIC = os.getenv("SHOW_PHONE_PUBLIC", "true").lower() in ("1", "true", "yes", "y")
+
+# Perfiles (editá esto a gusto)
 PETS: Dict[str, Dict[str, Any]] = {
     "rocky": {
+        # básicos
         "name": "Rocky",
         "photo": "/static/pet.jpg",
         "breed": "Mestizo",
-        "notes": "Es buenazo, pero se asusta si lo corrés. Ofrecele agua y hablale tranqui 🙂",
+        "sex": "Macho",
+        "age": "3 años",
+        "size": "Mediano",
+        "color": "Marrón con pecho blanco",
+        "chip_id": "—",
+        "vaccines": "Antirrábica al día ✅",
+        "sterilized": "Sí",
+        "allergies": "Ninguna conocida",
+        "meds": "Ninguna",
+        "temperament": "Súper bueno, algo miedoso con ruidos fuertes",
+        "distinctive": "Manchita blanca en el pecho / collar rojo",
+        # contacto
         "owner_name": os.getenv("OWNER_NAME", "Tincho"),
         "phone": os.getenv("OWNER_PHONE", "+54 9 261 000 0000"),
         "whatsapp": os.getenv("OWNER_WHATSAPP", "+5492610000000"),
-        "extra": "No muerde. Responde a 'Rocky'.",
+        "emergency_contact": os.getenv("EMERGENCY_CONTACT", "—"),
+        # texto útil
+        "notes": "No lo corras. Ofrecele agua y hablale tranqui 🙂",
+        "what_to_do": [
+            "Si podés, quedate cerca sin perseguirlo.",
+            "Sacale una foto y mandame ubicación.",
+            "Si tenés agua, mejor. Si no, no pasa nada.",
+        ],
+        "reward": os.getenv("REWARD", "—"),
     }
 }
 
@@ -83,13 +106,6 @@ def now_utc_iso() -> str:
 
 
 def get_client_ip(req: Request) -> str:
-    """
-    Mejor esfuerzo para IP real detrás de:
-    - Cloudflare (CF-Connecting-IP / True-Client-IP)
-    - Reverse proxy (X-Forwarded-For / X-Real-IP)
-    - fallback: request.client.host
-    """
-    # Cloudflare
     cf = req.headers.get("cf-connecting-ip")
     if cf:
         return cf.strip()
@@ -98,10 +114,8 @@ def get_client_ip(req: Request) -> str:
     if tcip:
         return tcip.strip()
 
-    # Proxies clásicos
     xff = req.headers.get("x-forwarded-for")
     if xff:
-        # "client, proxy1, proxy2"
         return xff.split(",")[0].strip()
 
     xrip = req.headers.get("x-real-ip")
@@ -109,14 +123,6 @@ def get_client_ip(req: Request) -> str:
         return xrip.strip()
 
     return req.client.host if req.client else ""
-
-
-def get_ip_debug(req: Request) -> str:
-    """Para debug en Discord: muestra lo que llega en headers + raw client host."""
-    raw = req.client.host if req.client else ""
-    xff = req.headers.get("x-forwarded-for", "")
-    cf = req.headers.get("cf-connecting-ip", "")
-    return f"raw={raw} xff={xff} cf={cf}"
 
 
 def db_insert_scan(
@@ -260,7 +266,6 @@ async def pet_page(pet_id: str, request: Request):
 
     ts = now_utc_iso()
     ip = get_client_ip(request)
-    ip_dbg = get_ip_debug(request)
     ua = request.headers.get("user-agent", "")
     ref = request.headers.get("referer", "")
 
@@ -270,15 +275,20 @@ async def pet_page(pet_id: str, request: Request):
         f"🐶 **QR escaneado**\n"
         f"• Perro: **{pet['name']}** (`{pet_id}`)\n"
         f"• Hora (UTC): `{ts}`\n"
-        f"• IP detectada: `{ip}`\n"
-        f"• Debug IP: `{ip_dbg}`\n"
+        f"• IP: `{ip}`\n"
         f"• Perfil: {BASE_URL}/p/{pet_id}"
     )
     await discord_notify(msg)
 
     return templates.TemplateResponse(
         "pet.html",
-        {"request": request, "pet_id": pet_id, "pet": pet, "geo_enabled": GEO_ENABLED},
+        {
+            "request": request,
+            "pet_id": pet_id,
+            "pet": pet,
+            "geo_enabled": GEO_ENABLED,
+            "show_phone_public": SHOW_PHONE_PUBLIC
+        },
     )
 
 
@@ -311,6 +321,73 @@ async def scan_geo(pet_id: str, request: Request):
     await discord_notify(msg)
 
     return {"ok": True}
+
+
+@app.post("/api/report/{pet_id}")
+async def report_sighting(pet_id: str, request: Request):
+    """
+    El que lo encontró puede mandar un mensaje corto al dueño.
+    No guarda en DB (si querés, lo guardamos después).
+    """
+    pet = PETS.get(pet_id)
+    if not pet:
+        return JSONResponse({"ok": False, "error": "pet_not_found"}, status_code=404)
+
+    payload = await request.json()
+    message = (payload.get("message") or "").strip()
+    contact = (payload.get("contact") or "").strip()
+    lat = payload.get("lat")
+    lon = payload.get("lon")
+
+    if len(message) < 3:
+        return JSONResponse({"ok": False, "error": "message_too_short"}, status_code=400)
+
+    ip = get_client_ip(request)
+    ts = now_utc_iso()
+
+    gmaps = ""
+    if lat is not None and lon is not None:
+        gmaps = f"https://maps.google.com/?q={lat},{lon}"
+
+    msg = (
+        f"🧾 **Reporte desde la ficha**\n"
+        f"• Perro: **{pet['name']}** (`{pet_id}`)\n"
+        f"• Hora (UTC): `{ts}`\n"
+        f"• IP: `{ip}`\n"
+        f"• Contacto: `{contact or '—'}`\n"
+        f"• Mensaje: {message}\n"
+        f"{('• Maps: ' + gmaps) if gmaps else ''}"
+    )
+    await discord_notify(msg)
+
+    return {"ok": True}
+
+
+@app.get("/v/{pet_id}.vcf")
+def vcard(pet_id: str):
+    pet = PETS.get(pet_id)
+    if not pet:
+        return Response("Not found", status_code=404)
+
+    owner = pet.get("owner_name", "Dueño")
+    phone = pet.get("phone", "")
+    # vCard simple
+    vcf = "\n".join([
+        "BEGIN:VCARD",
+        "VERSION:3.0",
+        f"N:{owner};;;;",
+        f"FN:{owner} (Dueño de {pet.get('name','Mascota')})",
+        f"TEL;TYPE=CELL:{phone}",
+        f"NOTE:Si encontraste a {pet.get('name','mi perro')}, por favor llamame. Perfil: {BASE_URL}/p/{pet_id}",
+        "END:VCARD",
+        ""
+    ])
+
+    headers = {
+        "Content-Type": "text/vcard; charset=utf-8",
+        "Content-Disposition": f'attachment; filename="{pet_id}.vcf"',
+    }
+    return Response(vcf, headers=headers)
 
 
 # ------------------------ Admin ------------------------
@@ -378,20 +455,3 @@ def admin_dashboard(
             "base_url": BASE_URL,
         },
     )
-
-
-@app.get("/admin/api/scans", response_class=JSONResponse)
-def admin_api_scans(
-    request: Request,
-    pet: Optional[str] = None,
-    date_from: Optional[str] = None,
-    date_to: Optional[str] = None,
-    page: int = 1,
-    page_size: int = 50,
-):
-    redir = require_auth(request)
-    if redir:
-        return JSONResponse({"ok": False, "error": "unauthorized"}, status_code=401)
-
-    total, rows = db_query_scans(pet_id=pet, date_from=date_from, date_to=date_to, page=page, page_size=page_size)
-    return {"ok": True, "total": total, "rows": rows}

@@ -6,14 +6,9 @@
   <title>{{ pet.name }} • Si me encontraste</title>
   <style>
     :root{
-      --bg:#0b1220;
-      --card:rgba(18,28,51,.92);
-      --text:#eaf0ff;
-      --muted:#93a4c7;
-      --line:rgba(255,255,255,.10);
-      --accent:#22d3ee;
-      --accent2:#60a5fa;
-      --danger:#fb7185;
+      --bg:#0b1220; --card:rgba(18,28,51,.92); --text:#eaf0ff; --muted:#93a4c7;
+      --line:rgba(255,255,255,.10); --accent:#22d3ee; --accent2:#60a5fa;
+      --ok:#34d399; --warn:#fbbf24; --danger:#fb7185;
     }
     *{box-sizing:border-box}
     body{
@@ -25,121 +20,54 @@
       font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;
       color:var(--text);
     }
-    .wrap{max-width:720px;margin:0 auto;padding:14px 14px 92px;} /* padding bottom para barra fija */
-    .card{
-      background:var(--card);
-      border:1px solid var(--line);
-      border-radius:20px;
-      overflow:hidden;
-      box-shadow:0 18px 60px rgba(0,0,0,.35);
-    }
-
-    /* HERO banner */
-    .hero{
-      position:relative;
-      width:100%;
-      height:min(42vh, 340px);
-      background:rgba(255,255,255,.03);
-    }
-    .hero img{
-      width:100%;
-      height:100%;
-      object-fit:cover;
-      display:block;
-      filter:saturate(1.05) contrast(1.05);
-    }
-    .hero:after{
-      content:"";
-      position:absolute; inset:0;
-      background:linear-gradient(to top, rgba(11,18,32,.92), rgba(11,18,32,.10) 55%, rgba(11,18,32,.0));
-      pointer-events:none;
-    }
-    .hero-text{
-      position:absolute; left:14px; right:14px; bottom:14px;
-      z-index:2;
-    }
-    h1{
-      margin:0;
-      font-size:clamp(22px, 4.8vw, 30px);
-      letter-spacing:.2px;
-      text-shadow:0 8px 30px rgba(0,0,0,.55);
-    }
-    .sub{
-      margin:6px 0 0 0;
-      color:rgba(234,240,255,.88);
-      line-height:1.3;
-      text-shadow:0 8px 30px rgba(0,0,0,.55);
-      font-size:clamp(13px, 3.4vw, 15px);
-    }
+    .wrap{max-width:760px;margin:0 auto;padding:14px 14px 92px;}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:20px;overflow:hidden;box-shadow:0 18px 60px rgba(0,0,0,.35);}
+    .hero{position:relative;width:100%;height:min(44vh, 360px);background:rgba(255,255,255,.03);}
+    .hero img{width:100%;height:100%;object-fit:cover;display:block;filter:saturate(1.05) contrast(1.05);}
+    .hero:after{content:"";position:absolute;inset:0;background:linear-gradient(to top, rgba(11,18,32,.92), rgba(11,18,32,.10) 55%, rgba(11,18,32,0));}
+    .hero-text{position:absolute;left:14px;right:14px;bottom:14px;z-index:2;}
+    h1{margin:0;font-size:clamp(22px, 4.8vw, 30px);text-shadow:0 8px 30px rgba(0,0,0,.55);}
+    .sub{margin:6px 0 0 0;color:rgba(234,240,255,.88);line-height:1.3;font-size:clamp(13px, 3.4vw, 15px);text-shadow:0 8px 30px rgba(0,0,0,.55);}
+    .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:rgba(255,255,255,.03);margin-top:10px;font-size:12px;}
+    code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:8px;border:1px solid var(--line);}
 
     .content{padding:14px;}
-    .pill{
-      display:inline-flex; align-items:center; gap:8px;
-      padding:8px 12px;
-      border-radius:999px;
-      border:1px solid var(--line);
-      color:var(--muted);
-      background:rgba(255,255,255,.03);
-      margin-top:10px;
-      font-size:12px;
-    }
-    code{background:rgba(255,255,255,.06); padding:2px 6px; border-radius:8px; border:1px solid var(--line);}
-
-    .box{
-      padding:12px;
-      border-radius:14px;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.03);
-    }
-    .muted{color:var(--muted);}
-    .title{font-weight:900; margin-bottom:6px;}
-
-    .grid{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:10px;
-    }
-    @media(max-width:560px){
-      .grid{grid-template-columns:1fr;}
-    }
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+    @media(max-width:560px){.grid{grid-template-columns:1fr;}}
 
     .btn{
-      display:flex; align-items:center; justify-content:center; gap:10px;
-      text-decoration:none;
-      padding:14px 14px;
-      border-radius:14px;
-      font-weight:900;
-      border:1px solid var(--line);
-      color:var(--text);
-      background:rgba(255,255,255,.03);
-      font-size:16px;
+      display:flex;align-items:center;justify-content:center;gap:10px;text-decoration:none;
+      padding:14px 14px;border-radius:14px;font-weight:900;border:1px solid var(--line);
+      color:var(--text);background:rgba(255,255,255,.03);font-size:16px;cursor:pointer;
     }
-    .btn:hover{transform:translateY(-1px); transition:.12s ease; border-color:rgba(34,211,238,.35);}
-    .btn-primary{
-      background:linear-gradient(90deg, rgba(34,211,238,.22), rgba(96,165,250,.22));
-      border-color:rgba(34,211,238,.35);
+    .btn-primary{background:linear-gradient(90deg, rgba(34,211,238,.22), rgba(96,165,250,.22));border-color:rgba(34,211,238,.35);}
+    .btn:hover{transform:translateY(-1px);transition:.12s ease;border-color:rgba(34,211,238,.35);}
+
+    .box{padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(255,255,255,.03);}
+    .muted{color:var(--muted);}
+    .title{font-weight:900;margin-bottom:6px;}
+    .rows{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}
+    @media(max-width:560px){.rows{grid-template-columns:1fr;}}
+    .k{color:var(--muted);font-size:12px;margin-bottom:4px;}
+    .v{font-weight:800;}
+
+    details{border:1px solid var(--line);background:rgba(255,255,255,.03);border-radius:14px;overflow:hidden;}
+    summary{list-style:none;cursor:pointer;padding:12px 12px;font-weight:900;display:flex;justify-content:space-between;align-items:center;}
+    summary::-webkit-details-marker{display:none;}
+    .details-body{padding:12px;border-top:1px solid var(--line);color:var(--muted);line-height:1.4;}
+
+    textarea,input{
+      width:100%;padding:10px;border-radius:12px;border:1px solid var(--line);
+      background:rgba(255,255,255,.03);color:var(--text);outline:none;
     }
+    textarea{min-height:92px;resize:vertical;}
+    .small{font-size:12px;color:var(--muted);}
 
     /* Barra fija mobile */
-    .bar{
-      position:fixed;
-      left:0; right:0; bottom:0;
-      padding:10px 12px;
-      background:rgba(11,18,32,.92);
-      border-top:1px solid var(--line);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      display:flex;
-      justify-content:center;
-      z-index:50;
-    }
-    .bar-inner{
-      width:min(720px, 100%);
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:10px;
-    }
-    .bar .btn{padding:14px 10px; border-radius:16px;}
+    .bar{position:fixed;left:0;right:0;bottom:0;padding:10px 12px;background:rgba(11,18,32,.92);border-top:1px solid var(--line);
+      backdrop-filter: blur(10px);-webkit-backdrop-filter: blur(10px);display:flex;justify-content:center;z-index:50;}
+    .bar-inner{width:min(760px, 100%);display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+    .bar .btn{padding:14px 10px;border-radius:16px;}
   </style>
 </head>
 <body>
@@ -149,49 +77,141 @@
         <img src="{{ pet.photo }}" alt="Foto de {{ pet.name }}">
         <div class="hero-text">
           <h1>Hola, soy {{ pet.name }} 🐾</h1>
-          <div class="sub">{{ pet.breed }} • Si me encontraste, por favor contactá a mi humano.</div>
+          <div class="sub">{{ pet.breed }} • Si me encontraste, por favor ayudame a volver.</div>
           <div class="pill">🆔 <code>{{ pet_id }}</code> • ✅ Gracias por ayudar</div>
         </div>
       </div>
 
       <div class="content">
         <div class="grid">
+          {% if show_phone_public %}
           <a class="btn btn-primary" href="tel:{{ pet.phone }}">📞 Llamar a {{ pet.owner_name }}</a>
+          {% else %}
+          <button class="btn btn-primary" onclick="scrollToReport()">🧾 Enviar mensaje al dueño</button>
+          {% endif %}
           <a class="btn" href="https://wa.me/{{ pet.whatsapp }}?text=Hola!%20Encontr%C3%A9%20a%20{{ pet.name }}%20(%23{{ pet_id }})">💬 WhatsApp</a>
         </div>
 
         <div style="height:12px"></div>
 
         <div class="box">
-          <div class="title">🧠 Importante</div>
-          <div class="muted">{{ pet.notes }}</div>
+          <div class="title">📌 Datos rápidos</div>
+          <div class="rows">
+            <div><div class="k">Sexo</div><div class="v">{{ pet.sex }}</div></div>
+            <div><div class="k">Edad</div><div class="v">{{ pet.age }}</div></div>
+            <div><div class="k">Tamaño</div><div class="v">{{ pet.size }}</div></div>
+            <div><div class="k">Color</div><div class="v">{{ pet.color }}</div></div>
+          </div>
           <div style="height:10px"></div>
-          <div class="muted" style="font-size:13px;">Extra: {{ pet.extra }}</div>
+          <div class="small">Chip: <code>{{ pet.chip_id }}</code> • Vacunas: <b>{{ pet.vaccines }}</b> • Castrado: <b>{{ pet.sterilized }}</b></div>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <details open>
+          <summary>🧠 Importante <span class="muted">▼</span></summary>
+          <div class="details-body">
+            <div><b>Comportamiento:</b> {{ pet.temperament }}</div>
+            <div style="height:8px"></div>
+            <div><b>Nota:</b> {{ pet.notes }}</div>
+            <div style="height:8px"></div>
+            <div><b>Señas particulares:</b> {{ pet.distinctive }}</div>
+          </div>
+        </details>
+
+        <div style="height:12px"></div>
+
+        <details>
+          <summary>🩺 Salud <span class="muted">▼</span></summary>
+          <div class="details-body">
+            <div><b>Alergias:</b> {{ pet.allergies }}</div>
+            <div><b>Medicación:</b> {{ pet.meds }}</div>
+          </div>
+        </details>
+
+        <div style="height:12px"></div>
+
+        <details>
+          <summary>🧭 Qué hacer si lo encontraste <span class="muted">▼</span></summary>
+          <div class="details-body">
+            <ul>
+              {% for item in pet.what_to_do %}
+                <li>{{ item }}</li>
+              {% endfor %}
+            </ul>
+            {% if pet.reward and pet.reward != "—" %}
+              <div>🎁 <b>Recompensa:</b> {{ pet.reward }}</div>
+            {% endif %}
+          </div>
+        </details>
+
+        <div style="height:12px"></div>
+
+        <div class="grid">
+          <a class="btn" href="/v/{{ pet_id }}.vcf">👤 Guardar contacto</a>
+          <button class="btn" onclick="sharePage()">🔗 Compartir ficha</button>
         </div>
 
         {% if geo_enabled %}
           <div style="height:12px"></div>
           <div class="box" id="geoBox">
-            <div class="title">📍 ¿Podés compartir tu ubicación?</div>
-            <div class="muted">Solo si aceptás. Nos ayuda a ir a buscarlo más rápido.</div>
+            <div class="title">📍 Compartir tu ubicación</div>
+            <div class="muted">Si aceptás, nos llega tu ubicación para ir a buscarlo más rápido.</div>
             <div style="height:10px"></div>
-            <button class="btn btn-primary" style="width:100%; cursor:pointer;" onclick="shareLocation()">Compartir ubicación</button>
+            <button class="btn btn-primary" style="width:100%;" onclick="shareLocation()">Compartir ubicación</button>
             <div class="muted" id="geoStatus" style="margin-top:10px; font-size:13px;"></div>
           </div>
         {% endif %}
+
+        <div style="height:12px"></div>
+
+        <div class="box" id="reportBox">
+          <div class="title">🧾 Enviar mensaje al dueño</div>
+          <div class="muted">Escribí dónde lo viste y cualquier detalle. (Llega a Discord)</div>
+          <div style="height:10px"></div>
+
+          <div class="small">Tu contacto (opcional):</div>
+          <input id="contact" placeholder="Ej: +54 9... / Instagram / lo que sea" />
+
+          <div style="height:10px"></div>
+          <div class="small">Mensaje:</div>
+          <textarea id="message" placeholder="Ej: Lo vi en la plaza, está bien, cerca del kiosco..."></textarea>
+
+          <div style="height:10px"></div>
+          <button class="btn btn-primary" style="width:100%;" onclick="sendReport()">Enviar mensaje</button>
+          <div class="muted" id="reportStatus" style="margin-top:10px; font-size:13px;"></div>
+        </div>
+
       </div>
     </div>
   </div>
 
-  <!-- Barra fija (mejor UX en celular) -->
   <div class="bar">
     <div class="bar-inner">
+      {% if show_phone_public %}
       <a class="btn btn-primary" href="tel:{{ pet.phone }}">📞 Llamar</a>
+      {% else %}
+      <button class="btn btn-primary" onclick="scrollToReport()">🧾 Mensaje</button>
+      {% endif %}
       <a class="btn" href="https://wa.me/{{ pet.whatsapp }}?text=Hola!%20Encontr%C3%A9%20a%20{{ pet.name }}%20(%23{{ pet_id }})">💬 WhatsApp</a>
     </div>
   </div>
 
 <script>
+function scrollToReport(){
+  document.getElementById("reportBox").scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+async function sharePage(){
+  const url = window.location.href;
+  if(navigator.share){
+    try{ await navigator.share({ title: "Ficha de {{ pet.name }}", url }); }catch(e){}
+  }else{
+    await navigator.clipboard.writeText(url);
+    alert("Link copiado ✅");
+  }
+}
+
 async function shareLocation(){
   const status = document.getElementById("geoStatus");
   status.textContent = "Pidiendo ubicación…";
@@ -203,11 +223,7 @@ async function shareLocation(){
 
   navigator.geolocation.getCurrentPosition(async (pos) => {
     try{
-      const payload = {
-        lat: pos.coords.latitude,
-        lon: pos.coords.longitude,
-        accuracy: pos.coords.accuracy
-      };
+      const payload = { lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy };
       const res = await fetch(`/api/scan/{{ pet_id }}`, {
         method: "POST",
         headers: {"Content-Type":"application/json"},
@@ -221,6 +237,46 @@ async function shareLocation(){
   }, () => {
     status.textContent = "No se compartió la ubicación (rechazado o error).";
   }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+}
+
+async function sendReport(){
+  const status = document.getElementById("reportStatus");
+  const message = (document.getElementById("message").value || "").trim();
+  const contact = (document.getElementById("contact").value || "").trim();
+
+  if(message.length < 3){
+    status.textContent = "Escribí un mensaje un poco más largo 🙂";
+    return;
+  }
+
+  status.textContent = "Enviando…";
+
+  // Intentamos incluir ubicación si la tiene (pero sin forzar permiso)
+  let lat = null, lon = null;
+  const doSend = async () => {
+    try{
+      const payload = { message, contact, lat, lon };
+      const res = await fetch(`/api/report/{{ pet_id }}`, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      status.textContent = data.ok ? "✅ Enviado. ¡Gracias!" : "⚠️ No se pudo enviar.";
+    }catch(e){
+      status.textContent = "⚠️ Error enviando.";
+    }
+  };
+
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition((pos) => {
+      lat = pos.coords.latitude;
+      lon = pos.coords.longitude;
+      doSend();
+    }, () => doSend(), { enableHighAccuracy: false, timeout: 4000, maximumAge: 60000 });
+  }else{
+    doSend();
+  }
 }
 </script>
 </body>
