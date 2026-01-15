@@ -100,7 +100,7 @@
         <div class="muted" style="margin-bottom:10px">
           Tip: si no ves puntos, todavía no compartieron ubicación (o el navegador la negó).
         </div>
-        <div id="map"></div>
+        <div id="map" data-pet-id="{{ selected_pet }}"></div>
         <div style="height:10px"></div>
         <div class="row">
           <a class="btn btn-primary" href="{{ base_url }}/p/{{ selected_pet }}" target="_blank">Abrir ficha pública</a>
@@ -249,38 +249,59 @@
 
   </div>
 
-<script>
-  let points = JSON.parse('{{ points|tojson|escapejs }}');
-  let pet = JSON.parse('{{ pet|tojson|escapejs }}');
+<script type="text/javascript">
+  (function () {
+    var mapEl = document.getElementById("map");
+    var petId = mapEl.getAttribute("data-pet-id");
 
-  const map = L.map('map', { zoomControl: true });
-  const startLat = (pet.last_lat ?? pet.home_lat ?? -32.889) || -32.889;
-  const startLon = (pet.last_lon ?? pet.home_lon ?? -68.844) || -68.844;
-  map.setView([startLat, startLon], 13);
+    var map = L.map("map", { zoomControl: true });
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap",
+    }).addTo(map);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap'
-  }).addTo(map);
+    var markerLayer = L.layerGroup().addTo(map);
 
-  const markers = [];
-  function addMarker(lat, lon, txt){
-    const m = L.marker([lat, lon]).addTo(map).bindPopup(txt);
-    markers.push(m);
-  }
+    function addMarker(lat, lon, html) {
+      L.marker([lat, lon]).addTo(markerLayer).bindPopup(html);
+    }
 
-  // Puntos (más reciente primero)
-  if(points && points.length){
-    points.forEach((p, idx) => {
-      const label = idx === 0 ? "📍 Último punto" : `Punto #${idx+1}`;
-      const popup = `${label}<br>UTC: ${p.ts_utc}<br>Acc: ${p.accuracy ?? '—'} m<br>
-        <a target="_blank" href="https://maps.google.com/?q=${p.lat},${p.lon}">Abrir en Maps</a>`;
-      addMarker(p.lat, p.lon, popup);
-    });
-    const last = points[0];
-    map.setView([last.lat, last.lon], 15);
-  } else {
-    addMarker(startLat, startLon, "Sin puntos GPS todavía");
-  }
+    // Fallback Mendoza por defecto
+    map.setView([-32.889, -68.844], 12);
+
+    fetch("/api/locations/" + encodeURIComponent(petId) + "?limit=25", { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) return;
+
+        var pts = data.points || [];
+        markerLayer.clearLayers();
+
+        if (pts.length === 0) {
+          addMarker(-32.889, -68.844, "Sin puntos GPS todavía");
+          return;
+        }
+
+        for (var i = 0; i < pts.length; i++) {
+          var p = pts[i];
+          var label = (i === 0) ? "📍 Último punto" : ("Punto #" + (i + 1));
+          var popup =
+            label +
+            "<br>UTC: " + p.ts_utc +
+            "<br>Acc: " + (p.accuracy || "—") + " m<br>" +
+            '<a target="_blank" href="https://maps.google.com/?q=' + p.lat + "," + p.lon + '">Abrir en Maps</a>';
+
+          addMarker(p.lat, p.lon, popup);
+        }
+
+        // enfocar último punto
+        map.setView([pts[0].lat, pts[0].lon], 15);
+      })
+      .catch(function () {
+        // si falla el fetch, igual no rompemos la página
+      });
+  })();
 </script>
+
+
 </body>
 </html>
