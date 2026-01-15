@@ -4,11 +4,15 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>{{ pet.name }} • Si me encontraste</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <style>
     :root{
       --bg:#0b1220; --card:rgba(18,28,51,.92); --text:#eaf0ff; --muted:#93a4c7;
       --line:rgba(255,255,255,.10); --accent:#22d3ee; --accent2:#60a5fa;
-      --ok:#34d399; --warn:#fbbf24; --danger:#fb7185;
+      --ok:#34d399; --danger:#fb7185;
     }
     *{box-sizing:border-box}
     body{
@@ -51,10 +55,7 @@
     .k{color:var(--muted);font-size:12px;margin-bottom:4px;}
     .v{font-weight:800;}
 
-    details{border:1px solid var(--line);background:rgba(255,255,255,.03);border-radius:14px;overflow:hidden;}
-    summary{list-style:none;cursor:pointer;padding:12px 12px;font-weight:900;display:flex;justify-content:space-between;align-items:center;}
-    summary::-webkit-details-marker{display:none;}
-    .details-body{padding:12px;border-top:1px solid var(--line);color:var(--muted);line-height:1.4;}
+    #map{height:280px;border-radius:16px;border:1px solid var(--line);overflow:hidden}
 
     textarea,input{
       width:100%;padding:10px;border-radius:12px;border:1px solid var(--line);
@@ -63,11 +64,13 @@
     textarea{min-height:92px;resize:vertical;}
     .small{font-size:12px;color:var(--muted);}
 
-    /* Barra fija mobile */
     .bar{position:fixed;left:0;right:0;bottom:0;padding:10px 12px;background:rgba(11,18,32,.92);border-top:1px solid var(--line);
       backdrop-filter: blur(10px);-webkit-backdrop-filter: blur(10px);display:flex;justify-content:center;z-index:50;}
     .bar-inner{width:min(760px, 100%);display:grid;grid-template-columns:1fr 1fr;gap:10px;}
     .bar .btn{padding:14px 10px;border-radius:16px;}
+    .badge{padding:4px 8px;border-radius:999px;border:1px solid var(--line);font-size:12px;}
+    .home{border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.12)}
+    .lost{border-color:rgba(251,113,133,.35);background:rgba(251,113,133,.12)}
   </style>
 </head>
 <body>
@@ -77,86 +80,89 @@
         <img src="{{ pet.photo }}" alt="Foto de {{ pet.name }}">
         <div class="hero-text">
           <h1>Hola, soy {{ pet.name }} 🐾</h1>
-          <div class="sub">{{ pet.breed }} • Si me encontraste, por favor ayudame a volver.</div>
-          <div class="pill">🆔 <code>{{ pet_id }}</code> • ✅ Gracias por ayudar</div>
+          <div class="sub">{{ pet.breed or "" }} • Gracias por ayudar.</div>
+          <div class="pill">🆔 <code>{{ pet_id }}</code>
+            {% if pet.status == "lost" %}
+              <span class="badge lost">🚨 PERDIDO</span>
+            {% else %}
+              <span class="badge home">✅ EN CASA</span>
+            {% endif %}
+          </div>
         </div>
       </div>
 
       <div class="content">
-        <div class="grid">
-          {% if show_phone_public %}
-          <a class="btn btn-primary" href="tel:{{ pet.phone }}">📞 Llamar a {{ pet.owner_name }}</a>
-          {% else %}
-          <button class="btn btn-primary" onclick="scrollToReport()">🧾 Enviar mensaje al dueño</button>
-          {% endif %}
-          <a class="btn" href="https://wa.me/{{ pet.whatsapp }}?text=Hola!%20Encontr%C3%A9%20a%20{{ pet.name }}%20(%23{{ pet_id }})">💬 WhatsApp</a>
+
+        <div class="box">
+          <div class="title">📌 Datos rápidos</div>
+          <div class="rows">
+            <div><div class="k">Sexo</div><div class="v">{{ pet.sex or "—" }}</div></div>
+            <div><div class="k">Edad</div><div class="v">{{ pet.age or "—" }}</div></div>
+            <div><div class="k">Tamaño</div><div class="v">{{ pet.size or "—" }}</div></div>
+            <div><div class="k">Color</div><div class="v">{{ pet.color or "—" }}</div></div>
+          </div>
+          <div style="height:10px"></div>
+          <div class="small">Chip: <code>{{ pet.chip_id or "—" }}</code> • Vacunas: <b>{{ pet.vaccines or "—" }}</b> • Castrado: <b>{{ pet.sterilized or "—" }}</b></div>
         </div>
 
         <div style="height:12px"></div>
 
         <div class="box">
-          <div class="title">📌 Datos rápidos</div>
-          <div class="rows">
-            <div><div class="k">Sexo</div><div class="v">{{ pet.sex }}</div></div>
-            <div><div class="k">Edad</div><div class="v">{{ pet.age }}</div></div>
-            <div><div class="k">Tamaño</div><div class="v">{{ pet.size }}</div></div>
-            <div><div class="k">Color</div><div class="v">{{ pet.color }}</div></div>
-          </div>
+          <div class="title">👥 Contactos</div>
+          <div class="muted">Probá por orden (1 es el principal).</div>
           <div style="height:10px"></div>
-          <div class="small">Chip: <code>{{ pet.chip_id }}</code> • Vacunas: <b>{{ pet.vaccines }}</b> • Castrado: <b>{{ pet.sterilized }}</b></div>
+
+          {% for c in contacts %}
+            <div class="box" style="margin-bottom:10px">
+              <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
+                <div>
+                  <div style="font-weight:900">{{ c.name }}</div>
+                  <div class="muted" style="font-size:12px">{{ c.label }} • prioridad {{ c.priority }}</div>
+                </div>
+              </div>
+              <div style="height:10px"></div>
+              <div class="grid">
+                {% if show_phone_public and c.phone %}
+                  <a class="btn btn-primary" href="tel:{{ c.phone }}">📞 Llamar</a>
+                {% else %}
+                  <button class="btn btn-primary" onclick="scrollToReport()">🧾 Mensaje</button>
+                {% endif %}
+                {% if c.whatsapp %}
+                  <a class="btn" href="https://wa.me/{{ c.whatsapp }}?text=Hola!%20Encontr%C3%A9%20a%20{{ pet.name }}%20(%23{{ pet_id }})">💬 WhatsApp</a>
+                {% else %}
+                  <button class="btn" onclick="sharePage()">🔗 Compartir ficha</button>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+
+          <div class="grid">
+            <a class="btn" href="/v/{{ pet_id }}.vcf">👤 Guardar contacto</a>
+            <button class="btn" onclick="sharePage()">🔗 Compartir ficha</button>
+          </div>
         </div>
 
         <div style="height:12px"></div>
 
-        <details open>
-          <summary>🧠 Importante <span class="muted">▼</span></summary>
-          <div class="details-body">
-            <div><b>Comportamiento:</b> {{ pet.temperament }}</div>
-            <div style="height:8px"></div>
-            <div><b>Nota:</b> {{ pet.notes }}</div>
-            <div style="height:8px"></div>
-            <div><b>Señas particulares:</b> {{ pet.distinctive }}</div>
-          </div>
-        </details>
-
-        <div style="height:12px"></div>
-
-        <details>
-          <summary>🩺 Salud <span class="muted">▼</span></summary>
-          <div class="details-body">
-            <div><b>Alergias:</b> {{ pet.allergies }}</div>
-            <div><b>Medicación:</b> {{ pet.meds }}</div>
-          </div>
-        </details>
-
-        <div style="height:12px"></div>
-
-        <details>
-          <summary>🧭 Qué hacer si lo encontraste <span class="muted">▼</span></summary>
-          <div class="details-body">
-            <ul>
-              {% for item in pet.what_to_do %}
-                <li>{{ item }}</li>
-              {% endfor %}
-            </ul>
-            {% if pet.reward and pet.reward != "—" %}
-              <div>🎁 <b>Recompensa:</b> {{ pet.reward }}</div>
-            {% endif %}
-          </div>
-        </details>
-
-        <div style="height:12px"></div>
-
-        <div class="grid">
-          <a class="btn" href="/v/{{ pet_id }}.vcf">👤 Guardar contacto</a>
-          <button class="btn" onclick="sharePage()">🔗 Compartir ficha</button>
+        <div class="box">
+          <div class="title">🗺️ Último punto (si fue compartido)</div>
+          <div id="map"></div>
+          <div class="muted" style="margin-top:8px;font-size:12px">Si no aparece nada, nadie compartió ubicación todavía.</div>
         </div>
 
-        {% if geo_enabled %}
+        {% if pet.status == "home" %}
+          <div style="height:12px"></div>
+          <div class="box">
+            <div class="title">✅ Buenas noticias</div>
+            <div class="muted">Este perro figura como <b>EN CASA</b>. Si igual te preocupa, podés mandar un mensaje abajo.</div>
+          </div>
+        {% endif %}
+
+        {% if geo_enabled and pet.status == "lost" %}
           <div style="height:12px"></div>
           <div class="box" id="geoBox">
             <div class="title">📍 Compartir tu ubicación</div>
-            <div class="muted">Si aceptás, nos llega tu ubicación para ir a buscarlo más rápido.</div>
+            <div class="muted">Nos ayuda a ir a buscarlo más rápido.</div>
             <div style="height:10px"></div>
             <button class="btn btn-primary" style="width:100%;" onclick="shareLocation()">Compartir ubicación</button>
             <div class="muted" id="geoStatus" style="margin-top:10px; font-size:13px;"></div>
@@ -166,17 +172,14 @@
         <div style="height:12px"></div>
 
         <div class="box" id="reportBox">
-          <div class="title">🧾 Enviar mensaje al dueño</div>
-          <div class="muted">Escribí dónde lo viste y cualquier detalle. (Llega a Discord)</div>
+          <div class="title">🧾 Enviar mensaje</div>
+          <div class="muted">Esto llega directo a Discord del dueño.</div>
           <div style="height:10px"></div>
-
           <div class="small">Tu contacto (opcional):</div>
-          <input id="contact" placeholder="Ej: +54 9... / Instagram / lo que sea" />
-
+          <input id="contact" placeholder="Ej: +54 9... / IG / lo que sea" />
           <div style="height:10px"></div>
           <div class="small">Mensaje:</div>
           <textarea id="message" placeholder="Ej: Lo vi en la plaza, está bien, cerca del kiosco..."></textarea>
-
           <div style="height:10px"></div>
           <button class="btn btn-primary" style="width:100%;" onclick="sendReport()">Enviar mensaje</button>
           <div class="muted" id="reportStatus" style="margin-top:10px; font-size:13px;"></div>
@@ -188,12 +191,16 @@
 
   <div class="bar">
     <div class="bar-inner">
-      {% if show_phone_public %}
-      <a class="btn btn-primary" href="tel:{{ pet.phone }}">📞 Llamar</a>
+      {% if contacts|length > 0 and show_phone_public and contacts[0].phone %}
+      <a class="btn btn-primary" href="tel:{{ contacts[0].phone }}">📞 Llamar</a>
       {% else %}
       <button class="btn btn-primary" onclick="scrollToReport()">🧾 Mensaje</button>
       {% endif %}
-      <a class="btn" href="https://wa.me/{{ pet.whatsapp }}?text=Hola!%20Encontr%C3%A9%20a%20{{ pet.name }}%20(%23{{ pet_id }})">💬 WhatsApp</a>
+      {% if contacts|length > 0 and contacts[0].whatsapp %}
+      <a class="btn" href="https://wa.me/{{ contacts[0].whatsapp }}?text=Hola!%20Encontr%C3%A9%20a%20{{ pet.name }}%20(%23{{ pet_id }})">💬 WhatsApp</a>
+      {% else %}
+      <button class="btn" onclick="sharePage()">🔗 Compartir</button>
+      {% endif %}
     </div>
   </div>
 
@@ -215,12 +222,10 @@ async function sharePage(){
 async function shareLocation(){
   const status = document.getElementById("geoStatus");
   status.textContent = "Pidiendo ubicación…";
-
   if(!navigator.geolocation){
     status.textContent = "Este dispositivo no soporta geolocalización.";
     return;
   }
-
   navigator.geolocation.getCurrentPosition(async (pos) => {
     try{
       const payload = { lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy };
@@ -231,6 +236,7 @@ async function shareLocation(){
       });
       const data = await res.json();
       status.textContent = data.ok ? "✅ Ubicación enviada. ¡Gracias!" : "⚠️ No se pudo enviar la ubicación.";
+      if(data.ok) loadPoints();
     }catch(e){
       status.textContent = "⚠️ Error enviando la ubicación.";
     }
@@ -243,15 +249,12 @@ async function sendReport(){
   const status = document.getElementById("reportStatus");
   const message = (document.getElementById("message").value || "").trim();
   const contact = (document.getElementById("contact").value || "").trim();
-
   if(message.length < 3){
     status.textContent = "Escribí un mensaje un poco más largo 🙂";
     return;
   }
-
   status.textContent = "Enviando…";
 
-  // Intentamos incluir ubicación si la tiene (pero sin forzar permiso)
   let lat = null, lon = null;
   const doSend = async () => {
     try{
@@ -278,6 +281,45 @@ async function sendReport(){
     doSend();
   }
 }
+
+// ---- MAP (public) ----
+let map, markerLayer;
+
+function initMap(){
+  map = L.map('map', { zoomControl: true });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
+  markerLayer = L.layerGroup().addTo(map);
+  map.setView([-32.889, -68.844], 12);
+}
+
+async function loadPoints(){
+  try{
+    const res = await fetch(`/api/locations/{{ pet_id }}?limit=20`);
+    const data = await res.json();
+    if(!data.ok) return;
+
+    markerLayer.clearLayers();
+
+    const pts = data.points || [];
+    if(!pts.length){
+      // no points
+      return;
+    }
+
+    pts.forEach((p, idx) => {
+      const label = idx === 0 ? "📍 Último punto" : `Punto #${idx+1}`;
+      const popup = `${label}<br>UTC: ${p.ts_utc}<br>Acc: ${p.accuracy ?? '—'} m<br>
+        <a target="_blank" href="https://maps.google.com/?q=${p.lat},${p.lon}">Abrir en Maps</a>`;
+      L.marker([p.lat, p.lon]).addTo(markerLayer).bindPopup(popup);
+    });
+
+    const last = pts[0];
+    map.setView([last.lat, last.lon], 15);
+  }catch(e){}
+}
+
+initMap();
+loadPoints();
 </script>
 </body>
 </html>
