@@ -394,8 +394,6 @@ def startup():
 
 # ------------------------ Public ------------------------
 
-@app.get("/{pet_id}")
-
 @app.get("/health", response_class=JSONResponse)
 def health():
     return {"ok": True, "name": APP_NAME}
