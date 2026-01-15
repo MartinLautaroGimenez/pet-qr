@@ -27,7 +27,7 @@ ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")  # cambiar en producción
 SESSION_SECRET = os.getenv("SESSION_SECRET", secrets.token_urlsafe(32))
 
-# Si querés varios perros, agregalos acá (después lo pasamos a DB/JSON)
+# Perfiles (podés agregar más)
 PETS: Dict[str, Dict[str, Any]] = {
     "rocky": {
         "name": "Rocky",
@@ -55,7 +55,7 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
 
-# ------------------------ DB helpers ------------------------
+# ------------------------ DB ------------------------
 
 def db_init():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
@@ -78,18 +78,45 @@ def db_init():
         conn.commit()
 
 
+def now_utc_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
 def get_client_ip(req: Request) -> str:
+    """
+    Mejor esfuerzo para IP real detrás de:
+    - Cloudflare (CF-Connecting-IP / True-Client-IP)
+    - Reverse proxy (X-Forwarded-For / X-Real-IP)
+    - fallback: request.client.host
+    """
+    # Cloudflare
+    cf = req.headers.get("cf-connecting-ip")
+    if cf:
+        return cf.strip()
+
+    tcip = req.headers.get("true-client-ip")
+    if tcip:
+        return tcip.strip()
+
+    # Proxies clásicos
     xff = req.headers.get("x-forwarded-for")
     if xff:
+        # "client, proxy1, proxy2"
         return xff.split(",")[0].strip()
+
     xrip = req.headers.get("x-real-ip")
     if xrip:
         return xrip.strip()
+
     return req.client.host if req.client else ""
 
 
-def now_utc_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+def get_ip_debug(req: Request) -> str:
+    """Para debug en Discord: muestra lo que llega en headers + raw client host."""
+    raw = req.client.host if req.client else ""
+    xff = req.headers.get("x-forwarded-for", "")
+    cf = req.headers.get("cf-connecting-ip", "")
+    return f"raw={raw} xff={xff} cf={cf}"
 
 
 def db_insert_scan(
@@ -115,8 +142,8 @@ def db_insert_scan(
 
 def db_query_scans(
     pet_id: Optional[str] = None,
-    date_from: Optional[str] = None,  # YYYY-MM-DD
-    date_to: Optional[str] = None,    # YYYY-MM-DD
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
     page: int = 1,
     page_size: int = 25,
 ) -> Tuple[int, List[dict]]:
@@ -187,9 +214,6 @@ def db_stats() -> dict:
 # ------------------------ Discord notify ------------------------
 
 async def discord_notify(content: str):
-    """
-    Envía un mensaje simple a un webhook de Discord.
-    """
     if not DISCORD_ENABLED:
         return
     payload = {"content": content}
@@ -236,6 +260,7 @@ async def pet_page(pet_id: str, request: Request):
 
     ts = now_utc_iso()
     ip = get_client_ip(request)
+    ip_dbg = get_ip_debug(request)
     ua = request.headers.get("user-agent", "")
     ref = request.headers.get("referer", "")
 
@@ -245,10 +270,10 @@ async def pet_page(pet_id: str, request: Request):
         f"🐶 **QR escaneado**\n"
         f"• Perro: **{pet['name']}** (`{pet_id}`)\n"
         f"• Hora (UTC): `{ts}`\n"
-        f"• IP: `{ip}`\n"
+        f"• IP detectada: `{ip}`\n"
+        f"• Debug IP: `{ip_dbg}`\n"
         f"• Perfil: {BASE_URL}/p/{pet_id}"
     )
-    # Discord soporta markdown básico, va joya
     await discord_notify(msg)
 
     return templates.TemplateResponse(
@@ -270,8 +295,8 @@ async def scan_geo(pet_id: str, request: Request):
 
     ts = now_utc_iso()
     ip = get_client_ip(request)
-    ua = request.headers.get("user-agent", "")
 
+    ua = request.headers.get("user-agent", "")
     db_insert_scan(pet_id=pet_id, ts_utc=ts, ip=ip, ua=ua, lat=lat, lon=lon, acc=acc)
 
     gmaps = f"https://maps.google.com/?q={lat},{lon}" if lat is not None and lon is not None else ""
@@ -279,6 +304,7 @@ async def scan_geo(pet_id: str, request: Request):
         f"📍 **Ubicación compartida**\n"
         f"• Perro: **{pet['name']}** (`{pet_id}`)\n"
         f"• Hora (UTC): `{ts}`\n"
+        f"• IP: `{ip}`\n"
         f"• Precisión: `{acc} m`\n"
         f"• Maps: {gmaps}"
     )
