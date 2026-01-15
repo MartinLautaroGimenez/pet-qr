@@ -688,3 +688,53 @@ def admin_delete_contact(request: Request, contact_id: int, pet_id: str = Form(.
         return redir
     db_delete_contact(contact_id)
     return RedirectResponse(url=f"/admin?pet={pet_id}", status_code=303)
+@app.post("/admin/pet/create")
+def admin_create_pet(
+    request: Request,
+    pet_id: str = Form(...),
+    name: str = Form(...),
+):
+    redir = require_auth(request)
+    if redir:
+        return redir
+
+    pet_id = (pet_id or "").strip().lower()
+    name = (name or "").strip()
+
+    if not pet_id or not name:
+        return RedirectResponse(url="/admin", status_code=303)
+
+    # Validación básica de ID (evita espacios/raros)
+    allowed = "abcdefghijklmnopqrstuvwxyz0123456789-_"
+    if any(ch not in allowed for ch in pet_id):
+        return HTMLResponse("ID inválido. Usá a-z 0-9 - _", status_code=400)
+
+    with sqlite3.connect(DB_PATH) as conn:
+        exists = conn.execute("SELECT 1 FROM pets WHERE id=?", (pet_id,)).fetchone()
+        if exists:
+            return HTMLResponse("Ya existe un perro con ese ID.", status_code=400)
+
+        conn.execute("""
+            INSERT INTO pets (id, name, photo, status)
+            VALUES (?, ?, ?, 'lost')
+        """, (pet_id, name, "/static/pet.jpg"))
+
+        # Copiamos contacto principal del primer perro (si existe) como default
+        first = conn.execute("SELECT id FROM pets ORDER BY rowid ASC LIMIT 1").fetchone()
+        if first:
+            first_id = first[0]
+            c = conn.execute("""
+                SELECT label, name, phone, whatsapp, priority
+                FROM contacts
+                WHERE pet_id=?
+                ORDER BY priority ASC LIMIT 1
+            """, (first_id,)).fetchone()
+            if c:
+                conn.execute("""
+                    INSERT INTO contacts (pet_id, label, name, phone, whatsapp, priority)
+                    VALUES (?,?,?,?,?,?)
+                """, (pet_id, c[0], c[1], c[2], c[3], c[4]))
+
+        conn.commit()
+
+    return RedirectResponse(url=f"/admin?pet={pet_id}", status_code=303)
