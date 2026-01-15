@@ -393,10 +393,11 @@ def startup():
 
 
 # ------------------------ Public ------------------------
-
-@app.get("/{pet_id}")
-def redirect_pet_case_insensitive(pet_id: str):
-    return RedirectResponse(url=f"/{pet_id.lower()}", status_code=301)
+@app.get("/p/{pet_id}")
+async def pet_page(pet_id: str, request: Request):
+    # ✅ Si viene con mayúsculas, redirigimos a minúsculas (una sola vez)
+    if pet_id != pet_id.lower():
+        return RedirectResponse(url=f"/p/{pet_id.lower()}", status_code=301)
 
 @app.get("/health", response_class=JSONResponse)
 def health():
