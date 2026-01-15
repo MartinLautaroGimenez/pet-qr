@@ -407,7 +407,7 @@ async def pet_page(pet_id: str, request: Request):
     pet = db_get_pet(pet_id)
     if not pet:
         return HTMLResponse("<h1>Perro no encontrado</h1>", status_code=404)
-    if pet_id == "Frida":
+    if pet_id != pet_id.lower():
         return RedirectResponse(url=f"/p/{pet_id.lower()}", status_code=301)
     contacts = db_contacts(pet_id)
 
